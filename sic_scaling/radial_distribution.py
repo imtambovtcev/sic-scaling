@@ -244,7 +244,7 @@ class RadialDistributionMolecule(RadialDistribution):
 
 
 class RadialDistributionGpw(RadialDistribution):
-    def __init__(self, gpw_file, prenormalize=False, use_center_of_density=False):
+    def __init__(self, gpw_file=None, atoms=None, calc=None, prenormalize=False, use_center_of_density=False):
         """
         Initialize the RadialDistribution object.
 
@@ -253,10 +253,15 @@ class RadialDistributionGpw(RadialDistribution):
         prenormalize (bool): Whether to prenormalize the orbital densities.
         use_center_of_density (bool): Whether to center on the center of density.
         """
-        self.gpw_file = gpw_file
+
         self.prenormalize = prenormalize
         self.use_center_of_density = use_center_of_density
-        self.atoms, self.calc = restart(gpw_file, txt=None)
+        if gpw_file is not None:
+            self.atoms, self.calc = restart(gpw_file, txt=None)
+        else:
+            assert atoms is not None and calc is not None, "Either gpw_file or atoms and calc must be provided."
+            self.atoms, self.calc = atoms, calc
+
         self.grid, self.dv = None, None
         self.center_of_density = None
 
