@@ -3,9 +3,9 @@ from gpaw import restart
 from ase.units import Bohr
 import matplotlib.pyplot as plt
 from pathlib import Path
-from utils import normalize_density, calculate_density_center_gpw
+from .utils import normalize_density, calculate_density_center_gpw
 from chem_utils import Molecule
-from load_full_molecule import load_full_molecule
+# from load_full_molecule import load_full_molecule
 
 from abc import ABC, abstractmethod
 
@@ -21,7 +21,7 @@ class RadialDistribution(ABC):
         pass
 
     @abstractmethod
-    def get_orbital(self, orbital_index):
+    def get_orbital(self, orbital_index, spin=0):
         pass
 
     def setup_grid(self):
@@ -50,7 +50,7 @@ class RadialDistribution(ABC):
             ((z - center_z) * grid_spacings[2]) ** 2
         )
 
-    def compute_radial_distribution(self, orbital_index):
+    def compute_radial_distribution(self, orbital_index, spin=0):
         """
         Compute the radial distribution for a given orbital.
 
@@ -61,7 +61,7 @@ class RadialDistribution(ABC):
         r_bins (ndarray): Radial distance bins.
         radial_distribution (ndarray): Radial distribution values.
         """
-        orbital = self.get_orbital(orbital_index)
+        orbital = self.get_orbital(orbital_index, spin=spin)
         rho_i = orbital.conj() * orbital
 
         if self.prenormalize:
@@ -137,7 +137,7 @@ class RadialDistribution(ABC):
         print(f'Radial distribution for orbital {
               orbital_index} saved to {output_dir}')
 
-    def compute_spatial_extent(self, orbital_index):
+    def compute_spatial_extent(self, orbital_index, spin=0):
         """
         Compute the spatial extent ⟨r⟩ for a given orbital.
 
@@ -147,7 +147,7 @@ class RadialDistribution(ABC):
         Returns:
         spatial_extent (float): The spatial extent ⟨r⟩ of the orbital.
         """
-        orbital = self.get_orbital(orbital_index)
+        orbital = self.get_orbital(orbital_index, spin=spin)
         rho_i = orbital.conj() * orbital
 
         if self.prenormalize:
@@ -230,7 +230,7 @@ class RadialDistributionMolecule(RadialDistribution):
         """
         return self.dv
 
-    def get_orbital(self, orbital_index):
+    def get_orbital(self, orbital_index, spin=0):
         """
         Get the orbital wave function for a given index.
 
@@ -285,7 +285,7 @@ class RadialDistributionGpw(RadialDistribution):
         """
         return [spacing * Bohr for spacing in self.calc.wfs.gd.get_grid_spacings()]
 
-    def get_orbital(self, orbital_index):
+    def get_orbital(self, orbital_index, spin=0):
         """
         Get the orbital wave function for a given index.
 
@@ -295,7 +295,7 @@ class RadialDistributionGpw(RadialDistribution):
         Returns:
         ndarray: Orbital wave function.
         """
-        return self.calc.get_pseudo_wave_function(band=orbital_index)
+        return self.calc.get_pseudo_wave_function(band=orbital_index, spin=spin)
 
 
 # Example usage:

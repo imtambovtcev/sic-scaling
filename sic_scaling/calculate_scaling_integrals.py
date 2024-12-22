@@ -10,7 +10,7 @@ from ase.io import write
 from ase.units import Bohr
 from gpaw import restart
 
-from utils import compute_gradient, density_from_orbitals, get_consistent_densities_and_occupations
+from .utils import compute_gradient, density_from_orbitals, get_consistent_densities_and_occupations
 
 DENSITY_THRESHOLD = 1e-10
 
