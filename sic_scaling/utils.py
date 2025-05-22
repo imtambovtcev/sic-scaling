@@ -1,12 +1,14 @@
 import sys
 import time
+from typing import Dict, List, Optional, Tuple, Union, Any, Callable
 
 import numpy as np
 from ase.units import Bohr
 from gpaw import restart
+from ase.atoms import Atoms
 
 
-def compute_gradient(density, grid_spacings):
+def compute_gradient(density: np.ndarray, grid_spacings: List[float]) -> np.ndarray:
     """
     Compute the gradient of the density using central finite differences.
 
@@ -23,7 +25,7 @@ def compute_gradient(density, grid_spacings):
     return np.sqrt(grad_rho)
 
 
-def normalize_density(rho_i, dv, normalize=True):
+def normalize_density(rho_i: np.ndarray, dv: float, normalize: bool = True) -> np.ndarray:
     """
     Normalize the electron density over the grid so that its integral equals 1.
     Computes the normalization integral even if there is no request for normalization for debugging purposes.
@@ -31,6 +33,7 @@ def normalize_density(rho_i, dv, normalize=True):
     Parameters:
     rho_i (ndarray): Orbital electron density to normalize.
     dv (float): Volume element in Bohr^3 for integration.
+    normalize (bool): Whether to perform normalization. Default is True.
 
     Returns:
     rho_i_norm (ndarray): Normalized electron density.
@@ -44,14 +47,14 @@ def normalize_density(rho_i, dv, normalize=True):
     print(f"Normalization integral: {integral:.6f}" +
           (' (Not in use)' if not normalize else ''))
 
-    assert integral > sys.float_info.epsilon, "Integral of the density is {integral}. Cannot normalize."
+    assert integral > sys.float_info.epsilon, f"Integral of the density is {integral}. Cannot normalize."
     if normalize:
         return rho_i / integral
     else:
         return rho_i
 
 
-def calculate_density_center_gpw(calc=None, gpw_file=None):
+def calculate_density_center_gpw(calc: Optional[Any] = None, gpw_file: Optional[str] = None) -> np.ndarray:
     """
     Calculate the center of density from either all-electron density or pseudo-density.
 
@@ -102,7 +105,7 @@ def calculate_density_center_gpw(calc=None, gpw_file=None):
     return center_of_density
 
 
-def calculate_density_center_molecule(calc=None, gpw_file=None):
+def calculate_density_center_molecule(calc: Optional[Any] = None, gpw_file: Optional[str] = None) -> np.ndarray:
     """
     Calculate the center of density from either all-electron density or pseudo-density.
 
@@ -153,32 +156,59 @@ def calculate_density_center_molecule(calc=None, gpw_file=None):
     return center_of_density
 
 
-def density_from_orbitals(orbital, dv, prenormalize):
+def density_from_orbitals(orbital: np.ndarray, dv: float, prenormalize: bool) -> np.ndarray:
+    """
+    Calculate density from orbital wavefunction.
+
+    Parameters:
+    orbital (ndarray): Orbital wavefunction.
+    dv (float): Volume element in Bohr^3 for integration.
+    prenormalize (bool): Whether to normalize the resulting density.
+
+    Returns:
+    rho_i (ndarray): Orbital electron density.
+    """
     rho_i = orbital.conj() * orbital
     return normalize_density(rho_i, dv=dv, normalize=prenormalize)
 
 
-def get_consistent_densities_and_occupations(orbital_densities, f_n_s, orbital_index, dv, spin=0, rho=None, density_type='sum_rho_i', occupation_method='keep', prenormalize=False):
+def get_consistent_densities_and_occupations(
+    orbital_densities: List[List[np.ndarray]],
+    f_n_s: Tuple[np.ndarray, np.ndarray],
+    orbital_index: int,
+    dv: float,
+    spin: int = 0,
+    rho: Optional[np.ndarray] = None,
+    density_type: str = 'sum_rho_i',
+    occupation_method: str = 'keep',
+    prenormalize: bool = False
+) -> Tuple[np.ndarray, List[List[np.ndarray]], Tuple[np.ndarray, np.ndarray]]:
     """
     Utility function to compute the electron density based on the specified method.
 
     Parameters:
-    calc (GPAW Calculator): The GPAW calculator object.
+    orbital_densities (list of lists of ndarray): Orbital densities for all spin channels.
+    f_n_s (tuple of ndarray): Occupation numbers for all spin channels.
     orbital_index (int): The index of the orbital to compute the density for.
-    density_type (str): The type of density to compute. Options are:
-                        - 'given' : uses the given density.
-                        - 'sum_rho_i' : sums densities of occupied orbitals.
-    occupation_method (str): The method to determine the occupation numbers. Options are:
-                                - 'keep' : keeps the current occupation numbers.
-                                - 'imitate_excitation' : imitates excitation of the orbital.
-                                - 'all'
-    prenormalize (bool): Whether to prenormalize the orbital densities.
     dv (float): Volume element in Bohr^3 for integration.
+    spin (int, optional): Spin channel index (0 for alpha, 1 for beta). Default is 0.
+    rho (ndarray, optional): Pre-computed electron density. Required if density_type is 'given'.
+    density_type (str, optional): The type of density to compute. Options are:
+                               - 'given' : uses the given density.
+                               - 'sum_rho_i' : sums densities of occupied orbitals.
+                               Default is 'sum_rho_i'.
+    occupation_method (str, optional): The method to determine the occupation numbers. Options are:
+                                    - 'keep' : keeps the current occupation numbers.
+                                    - 'imitate_excitation' : imitates excitation of the orbital.
+                                    - 'all' : sets all occupations to 1.
+                                    Default is 'keep'.
+    prenormalize (bool, optional): Whether to prenormalize the orbital densities. Default is False.
 
     Returns:
-    rho (ndarray): The computed electron density on the grid.
-    orbital_densities (list[ndarray]): The electron densities of all orbitals. Each integrates to 1 (or roughly one if not normalized).
-    f_n (ndarray): The occupation numbers of the orbitals.
+    tuple containing:
+        - rho (ndarray): The computed electron density on the grid.
+        - orbital_densities (list of lists of ndarray): The electron densities of all orbitals.
+        - f_n_s (tuple of ndarray): The occupation numbers of the orbitals.
     """
     print(f"Computing {occupation_method} occupation numbers...")
     f_n_s = np.array(f_n_s).copy()
@@ -238,7 +268,7 @@ def get_consistent_densities_and_occupations(orbital_densities, f_n_s, orbital_i
             "Invalid density_type. Choose 'all_electron', 'pseudo', or 'sum_rho_i'.")
 
     if not np.all(total_density >= 0):
-        print(f"Warning: Negative electron density values detected. The lowest value is: {
+        print(f"Warning: Negative electron density values detected. The lowest value is : {
               total_density.min()}. Setting negative values to zero.")
         total_density = np.maximum(total_density, 0.0)
 
@@ -249,19 +279,18 @@ def get_consistent_densities_and_occupations(orbital_densities, f_n_s, orbital_i
     return total_density, orbital_densities, f_n_s
 
 
-def write_cube(file_obj, atoms, data=None, origin=None, comment=None):
+def write_cube(file_obj: Union[str, Any], atoms: Atoms, data: Optional[np.ndarray] = None, origin: Optional[List[float]] = None, comment: Optional[str] = None) -> None:
     """Function to write a cube file.
 
-    file_obj: str or file object
-        File to which output is written.
-    atoms: Atoms
-        The Atoms object specifying the atomic configuration.
-    data : 3-dim numpy array, optional (default = None)
-        Array containing volumetric data as e.g. electronic density
-    origin : 3-tuple
-        Origin of the volumetric data (units: Angstrom)
-    comment : str, optional (default = None)
-        Comment for the first line of the cube file.
+    Parameters:
+    file_obj (str or file object): File to which output is written.
+    atoms (Atoms): The Atoms object specifying the atomic configuration.
+    data (3-dim numpy array, optional): Array containing volumetric data as e.g. electronic density.
+                                       Default is None, which will create a unity array.
+    origin (list of 3 floats, optional): Origin of the volumetric data (units: Angstrom).
+                                       Default is None, which will use [0, 0, 0].
+    comment (str, optional): Comment for the first line of the cube file.
+                           Default is None, which will generate a timestamp comment.
     """
 
     if data is None:

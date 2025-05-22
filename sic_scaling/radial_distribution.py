@@ -3,6 +3,9 @@ from gpaw import restart
 from ase.units import Bohr
 import matplotlib.pyplot as plt
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union, Any
+from ase.atoms import Atoms
+
 from .utils import normalize_density, calculate_density_center_gpw
 from chem_utils import Molecule
 # from load_full_molecule import load_full_molecule
@@ -13,18 +16,40 @@ from abc import ABC, abstractmethod
 class RadialDistribution(ABC):
 
     @abstractmethod
-    def get_electron_density(self):
+    def get_electron_density(self) -> np.ndarray:
+        """
+        Get the electron density for the system.
+
+        Returns:
+            np.ndarray: The electron density array.
+        """
         pass
 
     @abstractmethod
-    def get_grid_spacings(self):
+    def get_grid_spacings(self) -> List[float]:
+        """
+        Get the grid spacings for the calculation.
+
+        Returns:
+            List[float]: Grid spacings in x, y, and z directions.
+        """
         pass
 
     @abstractmethod
-    def get_orbital(self, orbital_index, spin=0):
+    def get_orbital(self, orbital_index: int, spin: int = 0) -> np.ndarray:
+        """
+        Get the orbital wave function for a given index.
+
+        Parameters:
+            orbital_index (int): Index of the orbital to retrieve.
+            spin (int, optional): Spin channel (0 for alpha, 1 for beta). Default is 0.
+
+        Returns:
+            np.ndarray: Orbital wave function.
+        """
         pass
 
-    def setup_grid(self):
+    def setup_grid(self) -> None:
         """
         Set up the grid and volume element for the calculations.
         """
@@ -50,16 +75,18 @@ class RadialDistribution(ABC):
             ((z - center_z) * grid_spacings[2]) ** 2
         )
 
-    def compute_radial_distribution(self, orbital_index, spin=0):
+    def compute_radial_distribution(self, orbital_index: int, spin: int = 0) -> Tuple[np.ndarray, np.ndarray]:
         """
         Compute the radial distribution for a given orbital.
 
         Parameters:
-        orbital_index (int): The index of the orbital to compute.
+            orbital_index (int): The index of the orbital to compute.
+            spin (int, optional): Spin channel (0 for alpha, 1 for beta). Default is 0.
 
         Returns:
-        r_bins (ndarray): Radial distance bins.
-        radial_distribution (ndarray): Radial distribution values.
+            Tuple[np.ndarray, np.ndarray]: 
+                - r_bins (ndarray): Radial distance bins.
+                - radial_distribution (ndarray): Radial distribution values.
         """
         orbital = self.get_orbital(orbital_index, spin=spin)
         rho_i = orbital.conj() * orbital
@@ -78,22 +105,22 @@ class RadialDistribution(ABC):
 
         return r_bins, radial_distribution
 
-    def calculate_moment(self, r_bins, radial_distribution, moment_order):
+    def calculate_moment(self, r_bins: np.ndarray, radial_distribution: np.ndarray, moment_order: int) -> float:
         """
         Calculate the nth moment of the radial distribution.
 
         Parameters:
-        r_bins (ndarray): Radial distance bins.
-        radial_distribution (ndarray): Radial distribution values.
-        moment_order (int): The order of the moment to calculate.
+            r_bins (ndarray): Radial distance bins.
+            radial_distribution (ndarray): Radial distribution values.
+            moment_order (int): The order of the moment to calculate.
 
         Returns:
-        moment (float): The nth moment of the distribution.
+            float: The nth moment of the distribution.
         """
         moment = np.sum(r_bins ** moment_order * radial_distribution)
         return moment
 
-    def shift_center_of_density(self):
+    def shift_center_of_density(self) -> None:
         """
         Shift the grid to the center of density if it was not set initially.
         """
@@ -103,14 +130,14 @@ class RadialDistribution(ABC):
             print(f"Center of density shifted to: {self.center_of_density}")
             self.setup_grid()
 
-    def plot_radial_distribution(self, r_bins, radial_distribution, orbital_index):
+    def plot_radial_distribution(self, r_bins: np.ndarray, radial_distribution: np.ndarray, orbital_index: int) -> None:
         """
         Plot the radial distribution for the given orbital.
 
         Parameters:
-        r_bins (ndarray): Radial distance bins.
-        radial_distribution (ndarray): Radial distribution values.
-        orbital_index (int): Orbital index for labeling the plot.
+            r_bins (ndarray): Radial distance bins.
+            radial_distribution (ndarray): Radial distribution values.
+            orbital_index (int): Orbital index for labeling the plot.
         """
         plt.figure()
         plt.plot(r_bins, radial_distribution, label=f'Orbital {orbital_index}')
@@ -121,31 +148,32 @@ class RadialDistribution(ABC):
         plt.grid(True)
         plt.show()
 
-    def save_radial_distribution(self, r_bins, radial_distribution, orbital_index, output_dir):
+    def save_radial_distribution(self, r_bins: np.ndarray, radial_distribution: np.ndarray, orbital_index: int, output_dir: Path) -> None:
         """
         Save the radial distribution data to a text file.
 
         Parameters:
-        r_bins (ndarray): Radial distance bins.
-        radial_distribution (ndarray): Radial distribution values.
-        orbital_index (int): Orbital index for labeling.
-        output_dir (Path): Directory to save the file.
+            r_bins (ndarray): Radial distance bins.
+            radial_distribution (ndarray): Radial distribution values.
+            orbital_index (int): Orbital index for labeling.
+            output_dir (Path): Directory to save the file.
         """
         output_dir.mkdir(exist_ok=True)
         np.savetxt(output_dir / f'radial_distribution_orbital_{orbital_index}.txt',
                    np.column_stack((r_bins, radial_distribution)))
-        print(f'Radial distribution for orbital {
-              orbital_index} saved to {output_dir}')
+        print(
+            f'Radial distribution for orbital {orbital_index} saved to {output_dir}')
 
-    def compute_spatial_extent(self, orbital_index, spin=0):
+    def compute_spatial_extent(self, orbital_index: int, spin: int = 0) -> float:
         """
         Compute the spatial extent ⟨r⟩ for a given orbital.
 
         Parameters:
-        orbital_index (int): The index of the orbital to compute.
+            orbital_index (int): The index of the orbital to compute.
+            spin (int, optional): Spin channel (0 for alpha, 1 for beta). Default is 0.
 
         Returns:
-        spatial_extent (float): The spatial extent ⟨r⟩ of the orbital.
+            float: The spatial extent ⟨r⟩ of the orbital.
         """
         orbital = self.get_orbital(orbital_index, spin=spin)
         rho_i = orbital.conj() * orbital
@@ -157,31 +185,31 @@ class RadialDistribution(ABC):
         spatial_extent = np.sum(rho_i * self.grid) * self.dv
         return spatial_extent
 
-    def save_spatial_extent(self, spatial_extents, output_dir):
+    def save_spatial_extent(self, spatial_extents: Dict[int, float], output_dir: Path) -> None:
         """
         Save the spatial extent data to a text file.
 
         Parameters:
-        spatial_extents (dict): Dictionary of spatial extents for each orbital.
-        output_dir (Path): Directory to save the file.
+            spatial_extents (dict): Dictionary of spatial extents for each orbital.
+            output_dir (Path): Directory to save the file.
         """
         output_dir.mkdir(exist_ok=True)
         with open(output_dir / 'spatial_extent.txt', 'w') as f_out:
             for orbital_index, spatial_extent in spatial_extents.items():
-                f_out.write(f'Orbital {orbital_index}: Spatial Extent ⟨r⟩ = {
-                            spatial_extent:.6f} Bohr\n')
+                f_out.write(
+                    f'Orbital {orbital_index}: Spatial Extent ⟨r⟩ = {spatial_extent:.6f} Bohr\n')
         print(f'Spatial extent results saved in {output_dir}')
 
 
 class RadialDistributionMolecule(RadialDistribution):
-    def __init__(self, molecule, prenormalize=False, use_center_of_density=False):
+    def __init__(self, molecule: Molecule, prenormalize: bool = False, use_center_of_density: bool = False):
         """
         Initialize the RadialDistributionMolecule object.
 
         Parameters:
-        molecule (Molecule): Molecule instance with orbitals as ScalarField instances.
-        prenormalize (bool): Whether to prenormalize the orbital densities.
-        use_center_of_density (bool): Whether to center on the center of density.
+            molecule (Molecule): Molecule instance with orbitals as ScalarField instances.
+            prenormalize (bool, optional): Whether to prenormalize the orbital densities. Default is False.
+            use_center_of_density (bool, optional): Whether to center on the center of density. Default is False.
         """
         self.molecule = molecule
         self.prenormalize = prenormalize
@@ -198,12 +226,12 @@ class RadialDistributionMolecule(RadialDistribution):
 
         self.setup_grid()
 
-    def calculate_center_of_density(self):
+    def calculate_center_of_density(self) -> np.ndarray:
         """
         Calculate the center of density for the All electron density field.
 
         Returns:
-        np.ndarray: Center of density in the same units as the molecule coordinates.
+            np.ndarray: Center of density in the same units as the molecule coordinates.
         """
         density = self.get_electron_density()
 
@@ -212,46 +240,49 @@ class RadialDistributionMolecule(RadialDistribution):
 
         return np.sum(coords * density_flat[:, None], axis=0) / np.sum(density_flat)
 
-    def get_electron_density(self):
+    def get_electron_density(self) -> np.ndarray:
         """
         Get the electron density field for the calculation.
 
         Returns:
-        ndarray: Electron density field.
+            np.ndarray: Electron density field.
         """
         return self.molecule.scalar_fields["All electron density"].scalar_field
 
-    def get_grid_spacings(self):
+    def get_grid_spacings(self) -> List[float]:
         """
         Get the grid spacings for the calculation.
 
         Returns:
-        list: Grid spacings in x, y, and z directions.
+            List[float]: Grid spacings in x, y, and z directions.
         """
         return self.dv
 
-    def get_orbital(self, orbital_index, spin=0):
+    def get_orbital(self, orbital_index: int, spin: int = 0) -> np.ndarray:
         """
         Get the orbital wave function for a given index.
 
         Parameters:
-        orbital_index (int): Index of the orbital to retrieve.
+            orbital_index (int): Index of the orbital to retrieve.
+            spin (int, optional): Spin channel (0 for alpha, 1 for beta). Default is 0.
 
         Returns:
-        ndarray: Orbital wave function.
+            np.ndarray: Orbital wave function.
         """
         return self.molecule.scalar_fields[f'Orbital {orbital_index}'].scalar_field
 
 
 class RadialDistributionGpw(RadialDistribution):
-    def __init__(self, gpw_file=None, atoms=None, calc=None, prenormalize=False, use_center_of_density=False):
+    def __init__(self, gpw_file: Optional[str] = None, atoms: Optional[Atoms] = None, calc: Optional[Any] = None, prenormalize: bool = False, use_center_of_density: bool = False):
         """
         Initialize the RadialDistribution object.
 
         Parameters:
-        gpw_file (str): Path to the GPAW gpw file.
-        prenormalize (bool): Whether to prenormalize the orbital densities.
-        use_center_of_density (bool): Whether to center on the center of density.
+            gpw_file (str, optional): Path to the GPAW gpw file. Default is None.
+            atoms (Atoms, optional): ASE atoms object. Required if gpw_file is None. Default is None.
+            calc (GPAW calculator, optional): GPAW calculator object. Required if gpw_file is None. Default is None.
+            prenormalize (bool, optional): Whether to prenormalize the orbital densities. Default is False.
+            use_center_of_density (bool, optional): Whether to center on the center of density. Default is False.
         """
 
         self.prenormalize = prenormalize
@@ -272,33 +303,34 @@ class RadialDistributionGpw(RadialDistribution):
 
         self.setup_grid()
 
-    def get_electron_density(self):
+    def get_electron_density(self) -> np.ndarray:
         """
         Get the electron density field for the calculation.
 
         Returns:
-        ndarray: Electron density field.
+            np.ndarray: Electron density field.
         """
         return self.calc.get_all_electron_density(gridrefinement=1)
 
-    def get_grid_spacings(self):
+    def get_grid_spacings(self) -> List[float]:
         """
         Get the grid spacings for the calculation.
 
         Returns:
-        list: Grid spacings in x, y, and z directions.
+            List[float]: Grid spacings in x, y, and z directions.
         """
         return [spacing * Bohr for spacing in self.calc.wfs.gd.get_grid_spacings()]
 
-    def get_orbital(self, orbital_index, spin=0):
+    def get_orbital(self, orbital_index: int, spin: int = 0) -> np.ndarray:
         """
         Get the orbital wave function for a given index.
 
         Parameters:
-        orbital_index (int): Index of the orbital to retrieve.
+            orbital_index (int): Index of the orbital to retrieve.
+            spin (int, optional): Spin channel (0 for alpha, 1 for beta). Default is 0.
 
         Returns:
-        ndarray: Orbital wave function.
+            np.ndarray: Orbital wave function.
         """
         return self.calc.get_pseudo_wave_function(band=orbital_index, spin=spin)
 
@@ -333,11 +365,10 @@ if __name__ == '__main__':
     moment_order = 3  # Example: 2nd moment
     moment = radial_dist.calculate_moment(
         r_bins, radial_distribution, moment_order)
-    print(f'{moment_order}th moment for orbital {
-        orbital_index}: {moment/(4*np.pi):.6f}')
+    print(f'{moment_order}th moment for orbital {orbital_index}: {moment/(4*np.pi):.6f}')
 
     # Calculate and save spatial extent
     spatial_extent = radial_dist.compute_spatial_extent(orbital_index)
     spatial_extents[orbital_index] = spatial_extent
-    print(f'Spatial extent ⟨r⟩ for orbital {
-        orbital_index}: {spatial_extent:.6f} Å')
+    print(
+        f'Spatial extent ⟨r⟩ for orbital {orbital_index}: {spatial_extent:.6f} Å')

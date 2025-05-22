@@ -1,11 +1,13 @@
 import sys
 import time
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union, Any, Dict, Set
 
 import ase.io.cube
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from ase.atoms import Atoms
 from ase.io import write
 from ase.units import Bohr
 from gpaw import restart
@@ -15,50 +17,50 @@ from .utils import compute_gradient, density_from_orbitals, get_consistent_densi
 DENSITY_THRESHOLD = 1e-10
 
 
-def compute_scaled_gradient(rho_i, grad_rho_i):
+def compute_scaled_gradient(rho_i: np.ndarray, grad_rho_i: np.ndarray) -> np.ndarray:
     """
     Compute the scaled gradient s_i.
 
     Parameters:
-    rho_i (ndarray): Orbital density.
-    grad_rho_i (ndarray): Gradient magnitude of the orbital density.
+        rho_i (ndarray): Orbital density.
+        grad_rho_i (ndarray): Gradient magnitude of the orbital density.
 
     Returns:
-    s_i (ndarray): Scaled gradient.
+        s_i (ndarray): Scaled gradient.
     """
     factor = 2 * (3 * np.pi)**(1/3)
     with np.errstate(divide='ignore', invalid='ignore'):
         return np.where(rho_i > DENSITY_THRESHOLD, grad_rho_i / (factor * rho_i**(4/3)), 0.0)
 
 
-def compute_density_ratio(rho_i, rho):
+def compute_density_ratio(rho_i: np.ndarray, rho: np.ndarray) -> np.ndarray:
     """
     Compute the ratio of the orbital density to the total electron density.
 
     Parameters:
-    rho_i (ndarray): Orbital density.
-    rho (ndarray): Total electron density.
+        rho_i (ndarray): Orbital density.
+        rho (ndarray): Total electron density.
 
     Returns:
-    ratio (ndarray): Ratio of the orbital density to the total electron density.
+        ratio (ndarray): Ratio of the orbital density to the total electron density.
     """
 
     with np.errstate(divide='ignore', invalid='ignore'):
         return np.where(rho > DENSITY_THRESHOLD, rho_i / rho, 0.0)
 
 
-def compute_f_scaling_function(rho_i, rho, a, s_i):
+def compute_f_scaling_function(rho_i: np.ndarray, rho: np.ndarray, a: float, s_i: np.ndarray) -> np.ndarray:
     """
     Compute the scaling function f(rho_i, rho).
 
     Parameters:
-    rho_i (ndarray): Orbital density.
-    rho (ndarray): Total electron density (calculated on the same grid).
-    a (float): Scaling factor parameter.
-    s_i (ndarray): Scaled gradient.
+        rho_i (ndarray): Orbital density.
+        rho (ndarray): Total electron density (calculated on the same grid).
+        a (float): Scaling factor parameter.
+        s_i (ndarray): Scaled gradient.
 
     Returns:
-    f (ndarray): Scaling function.
+        f (ndarray): Scaling function.
     """
 
     with np.errstate(divide='ignore', invalid='ignore'):
@@ -71,39 +73,49 @@ def compute_f_scaling_function(rho_i, rho, a, s_i):
         # return np.where(rho > DENSITY_THRESHOLD, (1 - ratio)*rho_i / (1 + a * s_i**2), 0.0)
 
 
-def compute_g_scaling_function(f, rho_i):
+def compute_g_scaling_function(f: np.ndarray, rho_i: np.ndarray) -> np.ndarray:
+    """
+    Compute the scaling function g(f, rho_i).
+
+    Parameters:
+        f (ndarray): The scaling function values.
+        rho_i (ndarray): Orbital density.
+
+    Returns:
+        g (ndarray): The g scaling function values.
+    """
     return f * rho_i
 
 
-def integrate_scaling_function(f, dv):
+def integrate_scaling_function(f: np.ndarray, dv: float) -> float:
     """
     Integrate the scaling function over the grid.
 
     Parameters:
-    f (ndarray): The scaling function values on the grid.
-    dv (float): Volume element in Bohr^3 for integration.
+        f (ndarray): The scaling function values on the grid.
+        dv (float): Volume element in Bohr^3 for integration.
 
     Returns:
-    integral_value (float): The integral of the scaling function over the grid.
+        integral_value (float): The integral of the scaling function over the grid.
     """
     return np.nansum(f) * dv
 
 
-def analyze_scaling_function(f, rho, rho_i, grad_rho_i, grid_spacings):
+def analyze_scaling_function(f: np.ndarray, rho: np.ndarray, rho_i: np.ndarray, grad_rho_i: np.ndarray, grid_spacings: List[float]) -> None:
     """
     Analyze the scaling function to check for values above 1, print the most important points,
     and plot distributions of rho, rho_i, and grad_rho_i for points where f > 1, with full distributions for comparison.
     Also adds plots for f distribution and rho_i / rho, and prints the number and fraction of failed points.
 
     Parameters:
-    f (ndarray): The scaling function values on the grid.
-    rho (ndarray): Total electron density values.
-    rho_i (ndarray): Orbital density values.
-    grad_rho_i (ndarray): Gradient of the orbital density.
-    grid_spacings (list): List of grid spacings for each axis.
+        f (ndarray): The scaling function values on the grid.
+        rho (ndarray): Total electron density values.
+        rho_i (ndarray): Orbital density values.
+        grad_rho_i (ndarray): Gradient of the orbital density.
+        grid_spacings (list): List of grid spacings for each axis.
 
     Returns:
-    None
+        None
     """
     max_f = np.max(f)
     num_above_one = np.sum(f > 1)
@@ -162,7 +174,40 @@ def analyze_scaling_function(f, rho, rho_i, grad_rho_i, grid_spacings):
         print("No points where f > 1 detected.")
 
 
-def calculate_scaling_integral(atoms, orbital_index, grid_spacings, rho, orbital_densities, f_n_s, dv, spin=0, a=0.5, prenormalize=False, savedir: None | str = None):
+def calculate_scaling_integral(
+    atoms: Atoms,
+    orbital_index: int,
+    grid_spacings: List[float],
+    rho: np.ndarray,
+    orbital_densities: List[List[np.ndarray]],
+    f_n_s: Tuple[np.ndarray, np.ndarray],
+    dv: float,
+    spin: int = 0,
+    a: float = 0.5,
+    prenormalize: bool = False,
+    savedir: Optional[str] = None
+) -> Tuple[float, float]:
+    """
+    Calculate the scaling integral for a single orbital.
+
+    Parameters:
+        atoms (Atoms): ASE atoms object representing the molecule.
+        orbital_index (int): Index of the orbital to compute scaling integral for.
+        grid_spacings (list): List of grid spacings for each axis.
+        rho (ndarray): Total electron density.
+        orbital_densities (list of lists of ndarray): Orbital densities for all spin channels.
+        f_n_s (tuple of ndarray): Occupation numbers for all spin channels.
+        dv (float): Volume element in Bohr^3 for integration.
+        spin (int, optional): Spin channel (0 for alpha, 1 for beta). Default is 0.
+        a (float, optional): Scaling parameter. Default is 0.5.
+        prenormalize (bool, optional): Whether to prenormalize the orbital densities. Default is False.
+        savedir (str or None, optional): Directory to save output files. Default is None.
+
+    Returns:
+        Tuple[float, float]: A tuple containing:
+            - integral_value (float): The integral of the scaling function.
+            - coefficient_value (float): The computed coefficient value (1 - integral_value).
+    """
 
     print(f'{len(orbital_densities[0])=}')
     print(f'{orbital_densities[0][0].shape=}')
@@ -201,20 +246,39 @@ def calculate_scaling_integral(atoms, orbital_index, grid_spacings, rho, orbital
     return integral_value, coefficient_value
 
 
-def calculate_scaling_integrals(orbitals, spin=0, gpw_file=None,  atoms=None, calc=None, density_type='sum_rho_i', occupation_method='keep', a=0.5, prenormalize=False, savedir: None | str = None, uks=True):
+def calculate_scaling_integrals(
+    orbitals: List[int],
+    spin: int = 0,
+    gpw_file: Optional[str] = None,
+    atoms: Optional[Atoms] = None,
+    calc: Optional[Any] = None,
+    density_type: str = 'sum_rho_i',
+    occupation_method: str = 'keep',
+    a: float = 0.5,
+    prenormalize: bool = False,
+    savedir: Optional[str] = None,
+    uks: bool = True
+) -> Tuple[Dict[Tuple[int, int], float], Dict[Tuple[int, int], float]]:
     """
     Calculate the integral of the scaling function for a given list of orbitals.
 
     Parameters:
-    gpw_file (str): Path to the GPAW gpw file.
-    orbitals (list): List of orbital indices to compute scaling integrals for.
-    density_type (str): The type of density to use ('all_electron', 'pseudo', 'sum_rho_i').
-    a (float): Scaling parameter (default=0.5).
-    prenormalize (bool): Whether to prenormalize the orbital densities (default=False).
-    uks (bool): Is unrestricted Kohn-Sham, defaults to True
+        orbitals (list): List of orbital indices to compute scaling integrals for.
+        spin (int, optional): Spin channel (0 for alpha, 1 for beta). Default is 0.
+        gpw_file (str, optional): Path to the GPAW gpw file. Default is None.
+        atoms (Atoms, optional): ASE atoms object. Default is None.
+        calc (GPAW calculator, optional): GPAW calculator object. Default is None.
+        density_type (str, optional): The type of density to use ('all_electron', 'pseudo', 'sum_rho_i'). Default is 'sum_rho_i'.
+        occupation_method (str, optional): Method to handle orbital occupations ('keep', 'imitate_excitation', 'all'). Default is 'keep'.
+        a (float, optional): Scaling parameter. Default is 0.5.
+        prenormalize (bool, optional): Whether to prenormalize the orbital densities. Default is False.
+        savedir (str or None, optional): Directory to save output files. Default is None.
+        uks (bool, optional): Whether unrestricted Kohn-Sham is used. Default is True.
 
     Returns:
-    integrals (dict): Dictionary with orbital indices as keys and integral values as values.
+        Tuple[Dict[Tuple[int, int], float], Dict[Tuple[int, int], float]]:
+            - integral_values: Dictionary with (spin, orbital_index) tuples as keys and integral values as values.
+            - coefficient_values: Dictionary with (spin, orbital_index) tuples as keys and coefficient values as values.
     """
     assert gpw_file is not None or (
         atoms is not None and calc is not None), "Either 'gpw_file' or 'atoms' and 'calc' must be provided."
@@ -252,10 +316,27 @@ def calculate_scaling_integrals(orbitals, spin=0, gpw_file=None,  atoms=None, ca
         #       data=original_orbital_densities[orbital_index])
 
         rho, orbital_densities, f_n_s = get_consistent_densities_and_occupations(
-            orbital_densities=original_orbital_densities, f_n_s=original_f_n_s, orbital_index=orbital_index, spin=spin, density_type=density_type, occupation_method=occupation_method, dv=dv, prenormalize=prenormalize)
+            orbital_densities=original_orbital_densities,
+            f_n_s=original_f_n_s,
+            orbital_index=orbital_index,
+            spin=spin,
+            density_type=density_type,
+            occupation_method=occupation_method,
+            dv=dv,
+            prenormalize=prenormalize)
 
         integral_value, coefficient_value = calculate_scaling_integral(
-            atoms=atoms, orbital_index=orbital_index, grid_spacings=grid_spacings, rho=rho, orbital_densities=orbital_densities, f_n_s=f_n_s, dv=dv, spin=spin, a=a, prenormalize=prenormalize, savedir=savedir)
+            atoms=atoms,
+            orbital_index=orbital_index,
+            grid_spacings=grid_spacings,
+            rho=rho,
+            orbital_densities=orbital_densities,
+            f_n_s=f_n_s,
+            dv=dv,
+            spin=spin,
+            a=a,
+            prenormalize=prenormalize,
+            savedir=savedir)
 
         print(f"""Completed orbital {orbital_index} with integral
             {integral_value:.6f} and coefficient {coefficient_value:.6f}.""")
