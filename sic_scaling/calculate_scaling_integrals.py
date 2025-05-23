@@ -1,7 +1,7 @@
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union, Any, Dict, Set
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import ase.io.cube
 import matplotlib.pyplot as plt
@@ -12,7 +12,8 @@ from ase.io import write
 from ase.units import Bohr
 from gpaw import restart
 
-from .utils import compute_gradient, density_from_orbitals, get_consistent_densities_and_occupations
+from .utils import (compute_gradient, density_from_orbitals,
+                    get_consistent_densities_and_occupations)
 
 DENSITY_THRESHOLD = 1e-10
 

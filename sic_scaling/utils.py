@@ -1,11 +1,11 @@
 import sys
 import time
-from typing import Dict, List, Optional, Tuple, Union, Any, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+from ase.atoms import Atoms
 from ase.units import Bohr
 from gpaw import restart
-from ase.atoms import Atoms
 
 
 def compute_gradient(density: np.ndarray, grid_spacings: List[float]) -> np.ndarray:

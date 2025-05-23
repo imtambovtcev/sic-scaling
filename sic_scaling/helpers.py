@@ -1,7 +1,8 @@
 
-from .radial_distribution import RadialDistributionGpw
-from .calculate_scaling_integrals import calculate_scaling_integrals
 import numpy as np
+
+from .calculate_scaling_integrals import calculate_scaling_integrals
+from .radial_distribution import RadialDistributionGpw
 
 
 def get_coefficints_and_extents(atoms, calc, a=0.2, density_type="sum_rho_i", occupation_method="keep", prenormalize=True):
